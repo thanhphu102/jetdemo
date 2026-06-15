@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!-- Step-by-step autonomous drive: SMC is the only publisher of /cmd_vel. -->
+<launch>
+  <arg name="start_camera" default="true"/>
+  <arg name="start_yolo" default="true"/>
+  <arg name="start_detector" default="true"/>
+  <arg name="config" default="$(find jetracer)/config/lane_following.yaml"/>
+  <arg name="yolo_config" default="$(find jetracer)/config/yolo.yaml"/>
+
+  <include file="$(find jetracer)/launch/csi_camera.launch" if="$(arg start_camera)"/>
+
+  <include file="$(find jetracer)/launch/yolo.launch" if="$(arg start_yolo)">
+    <arg name="start_camera" value="false"/>
+    <arg name="start_detector" value="$(arg start_detector)"/>
+    <arg name="config" value="$(arg yolo_config)"/>
+  </include>
+
+  <node pkg="jetracer" type="lane_following_node.py" name="lane_following" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+    <param name="start_enabled" value="false"/>
+  </node>
+
+  <node pkg="jetracer" type="maneuver_node.py" name="maneuver" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+
+  <node pkg="jetracer" type="state_machine_controller_node.py"
+        name="state_machine_controller" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+</launch>

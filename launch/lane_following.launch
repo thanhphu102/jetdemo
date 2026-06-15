@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- Autonomous lane following: follower + merged maneuver node + coordinator.
+     The coordinator is the only publisher of /cmd_vel. -->
+<launch>
+  <arg name="start_camera" default="true"/>   <!-- bring up the CSI camera too -->
+  <arg name="config" default="$(find jetracer)/config/lane_following.yaml"/>
+
+  <!-- CSI camera (publishes /csi_cam_0/image_raw at 640x480) -->
+  <include file="$(find jetracer)/launch/csi_camera.launch" if="$(arg start_camera)"/>
+
+  <!-- Normal road mode. Private topics resolve to /lane_following/{cmd,event,enable}. -->
+  <node pkg="jetracer" type="lane_following_node.py" name="lane_following" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+
+  <!-- Intersection maneuvers (straight=vision, left/right=IMU). Request-driven. -->
+  <node pkg="jetracer" type="maneuver_node.py" name="maneuver" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+
+  <!-- Owns /cmd_vel; arbitrates follower vs maneuver per the route. -->
+  <node pkg="jetracer" type="lane_coordinator_node.py" name="lane_coordinator" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+</launch>

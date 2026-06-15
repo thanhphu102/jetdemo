@@ -1,0 +1,95 @@
+# Lane-following / maneuver / state-machine configuration.
+# Loaded into the private namespace of lane_following, maneuver and
+# state_machine_controller by launch/step_drive.launch. Sections a node doesn't
+# use are simply ignored.
+#
+# Pipeline tuning (roi/canny/hough/filter/validation/smoothing/control/debug) is
+# copied from the tuned smart-city notebook so detection behaviour is identical.
+
+resolution: {width: 640, height: 480}
+
+roi:        {top_y: 0.40, bottom_y: 1.00, top_width: 0.35, bottom_width: 0.90, center_shift: 0.00}
+canny:      {low: 50, high: 150, blur_kernel: 5}
+hough:      {threshold: 30, min_line_length: 30, max_line_gap: 20}
+filter:     {min_abs_slope: 0.3, max_abs_slope: 10.0, border_margin_px: 5}
+validation: {min_lane_width_frac: 0.20, max_lane_width_frac: 0.95, max_center_jump_frac: 0.15, smooth_alpha: 0.4}
+smoothing:  {line_alpha: 0.3, max_missing_frames: 10}
+debug:      {show_raw_lines: true}
+
+control:
+  k_offset: 0.95
+  k_heading: 1.05
+  max_heading_deg: 28.0
+  expected_lane_width_frac: 0.5
+  lane_center_offset_frac: 0.12
+  solid_detect_min_imbalance: 0.20
+  single_line_margin_frac: 0.42
+  steer_gain: 4.4
+  steer_bias: 0.25
+  steer_sign: 1.0
+  steer_min_boost: 0.08
+  steer_boost_deadband: 0.05
+  base_throttle: 0.30
+  max_throttle: 0.40
+  slow_factor: 0.6
+  throttle_sign: 1.0
+  min_throttle: 0.28
+
+# Steer/throttle in [-1,1] -> Twist for /cmd_vel (firmware units).
+#   linear.x  = throttle * max_linear   (m/s)
+#   angular.z = steer    * max_angular
+output:
+  max_linear: 0.40
+  max_angular: 1.0
+
+# Driving behaviour / maneuver handoff.
+drive:
+  image_topic: /csi_cam_0/image_raw
+  intersection_stop_frames: 5    # follower: frames with <2 fresh lines -> "intersection"
+  lane_ok_frames: 3              # follower: stable lane frames -> "lane_ok"
+  straight_slow_factor: 0.6      # straight maneuver crosses at base_throttle * this
+  straight_exit_frames: 4        # straight maneuver: frames with 2 lines back -> done
+  straight_max_seconds: 6.0      # straight maneuver safety timeout
+  publish_debug: false           # follower: publish ~debug_image overlay
+
+# IMU 90-degree turn params used by maneuver_node.py.
+turn:
+  angle_deg: 90.0
+  turn_linear: 0.14
+  turn_angular: 0.75
+  slow_down_angle_deg: 18.0
+  slow_linear: 0.09
+  slow_angular: 0.55
+  yaw_tolerance_deg: 3.0
+  max_turn_time: 6.0
+  rate: 30.0
+
+# Coordinator: sequence of actions taken at successive intersections (cycled).
+coordinator:
+  route: ["straight"]
+  rate: 30.0
+  cmd_timeout: 0.5
+
+# Step-by-step state machine controller. The SMC owns /cmd_vel in
+# launch/step_drive.launch and coordinates lane_following + maneuver.
+state_machine:
+  rate: 30.0
+  cmd_timeout: 0.5
+  command_topic: /sm/command
+  state_topic: /sm/state
+  intersection_topic: /perception/intersection
+  yolo_topic: /yolo_detections
+  sign_conf_min: 0.45
+  sign_debounce_frames: 3
+  light_debounce_frames: 3
+  recover_timeout: 5.0
+  lane_lost_timeout: 4.0
+  no_dirs_policy: stop
+  class_map:
+    "0_Go_straight": straight
+    "1_Turn_left": left
+    "2_Turn_right": right
+    "3_Prohibited": prohibited
+  light_classes:
+    red: ["4_Red_light"]
+    green: ["5_Green_light"]

@@ -1,0 +1,38 @@
+# YOLO TensorRT perception config.
+# Loaded by the Py2 ROS nodes (camera_udp_forwarder, yolo_bridge) via <rosparam>,
+# and read directly by the Py3 detector (trt_udp_detector.py) with PyYAML.
+# Defaults are used by the UDP TensorRT detector.
+
+net:
+  engine_path: best_fp16.engine
+  input_size: 320
+  conf_thres: 0.35
+  iou_thres: 0.45
+  # FULL class list in the engine's exact training order (index = class_id).
+  # The real engine may include traffic-light classes in addition to the signs;
+  # they MUST be appended here in their trained order.
+  # The detector asserts (engine output dim == 4 + len(class_names)) at startup;
+  # if that fails, fix this list to match the engine.
+  class_names:
+    - 0_Go_straight
+    - 1_Turn_left
+    - 2_Turn_right
+    - 3_Prohibited
+    # --- add the traffic-light class names below, in trained order, e.g.: ---
+    # - 4_Red_light
+    # - 5_Yellow_light
+    # - 6_Green_light
+
+transport:
+  udp_ip: 127.0.0.1
+  frame_port: 5006      # camera_udp_forwarder (Py2) -> detector (Py3): JPEG frames
+  det_port: 5005        # detector (Py3) -> yolo_bridge (Py2): detection JSON
+
+frame:
+  image_topic: /csi_cam_0/image_raw
+  rate_hz: 12           # forwarder throttle (YOLO needn't run at full camera fps)
+  jpeg_quality: 70
+  max_width: 640        # downscale wider frames so a JPEG fits one UDP datagram
+
+detector:
+  debug_every: 15       # print [DET] line every N processed frames

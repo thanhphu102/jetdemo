@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- YOLO TensorRT perception: camera frame forwarder + detection bridge.
+     Produces /yolo_detections (std_msgs/String, JSON). The Python 3 TensorRT
+     detector is a separate process (see start_detector / run it manually). -->
+<launch>
+  <arg name="start_camera"   default="false"/>  <!-- usually already up via the lane stack -->
+  <arg name="start_detector" default="true"/>   <!-- Py3 TensorRT process (needs the engine) -->
+  <arg name="config" default="$(find jetracer)/config/yolo.yaml"/>
+
+  <include file="$(find jetracer)/launch/csi_camera.launch" if="$(arg start_camera)"/>
+
+  <!-- Py2: camera topic -> UDP frames to the detector -->
+  <node pkg="jetracer" type="camera_udp_forwarder.py" name="camera_udp_forwarder" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+
+  <!-- Py2: UDP detection JSON -> /yolo_detections -->
+  <node pkg="jetracer" type="yolo_bridge_node.py" name="yolo_bridge" output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+
+  <!-- Py3 TensorRT detector (standalone, not a rospy node). Forced to python3.
+       Disable with start_detector:=false to run it by hand in its own terminal. -->
+  <node if="$(arg start_detector)" pkg="jetracer" type="trt_udp_detector.py"
+        name="trt_udp_detector" output="screen"
+        launch-prefix="python3" args="--config $(arg config)"/>
+</launch>
